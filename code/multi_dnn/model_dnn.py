@@ -1,7 +1,8 @@
 import numpy as np
 import os, time, sys
 import tensorflow as tf
-from code.multi_dnn.nn_prepare_data import batch_yield, save_result
+from code.multi_dnn.nn_prepare_data import batch_yield
+from code.base_data_process import write_result
 from code.util import base_util
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.metrics import f1_score
@@ -10,7 +11,7 @@ from sklearn.metrics import f1_score
 class mul_dnn(object):
     """docstring for mul_dnn"""
 
-    def __init__(self, args, label2index_map, input_size, paths, config):
+    def __init__(self, args, num_tags, input_size, paths, config):
         self.batch_size = args.batch_size
         self.epoch_num = args.epoch
         self.optimier = args.optimizer
@@ -23,8 +24,7 @@ class mul_dnn(object):
         self.clip_grad = args.clip
         self.optimizer = args.optimizer
         self.test_data_path = args.test_data
-        self.tag2label = label2index_map
-        self.num_tags = len(label2index_map)
+        self.num_tags = num_tags
         self.input_size = input_size
         self.config = config
         self.model_path = paths['model_path']
@@ -128,21 +128,16 @@ class mul_dnn(object):
         saver = tf.train.Saver()
         with tf.Session(config=self.config) as sess:
             saver.restore(sess, self.model_path)
-            label_list = []
-            for feat in batch_yield(test, self.batch_size):
-                label_list_ = self.predict(sess, feat)
-                label_list.extend(label_list_)
-
-            label2tag = {}
-            for tag, label in self.tag2label.items():
-                label2tag[label] = tag
-            tag = [label2tag[label] for label in label_list]
+            feed_dict = self.get_feed_dict(test, dropout=1.0)
+            # print('====feed_dict====',feed_dict)
+            label_pre = sess.run(self.pred_label, feed_dict=feed_dict)
             submit_path = os.path.join(self.result_path, 'result.csv')
-            save_result(ids, tag, submit_path)
+            write_result(submit_path, ids, label_pre)
 
     def run_one_epoch(self, sess, train, dev, epoch, saver):
         num_batches = (len(train) + self.batch_size - 1) // self.batch_size
         batches = batch_yield(train, self.batch_size)
+        step_num = 0
         for step, (feats, label) in enumerate(batches):
             step_num = epoch * num_batches + step + 1
             feed_dict = self.get_feed_dict(feats, label, self.lr, self.dropout_keep_prob)
@@ -154,8 +149,7 @@ class mul_dnn(object):
                                                                                         loss_train, step_num))
             self.file_writer.add_summary(summary, step_num)
 
-            if step + 1 == num_batches:
-                saver.save(sess, self.model_path, global_step=step_num)
+        saver.save(sess, self.model_path, global_step=step_num)
 
         self.logger.info('===========validation / test============')
         label_pre, label_true = self.predict(sess, dev)

@@ -110,6 +110,6 @@ venv.bak/
 
 test*.py
 
-result*.csv
+result/*
 nohup.out
 /origin_data/*.csv

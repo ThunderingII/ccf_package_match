@@ -3,6 +3,9 @@ import numpy as np
 
 from sklearn import preprocessing
 from code.util.base_util import get_logger
+from code.util.base_util import pickle_load
+from code.util.base_util import pickle_dump
+from code.util.base_util import timer
 import os
 import pickle
 
@@ -12,13 +15,15 @@ ID = 'user_id'
 log = get_logger()
 
 
-def base_data_prepare(age2group=True, one_hot=True):
-    extra_path = ''
-    if not os.getcwd().endswith('311'):
-        extra_path = '../'
+def __get_dir(dir):
+    if not os.getcwd().endswith('code'):
+        return '../' + dir
+    return dir
 
-    df_train = pd.read_csv(extra_path + '../origin_data/train.csv')
-    df_test = pd.read_csv(extra_path + '../origin_data/test.csv')
+
+def base_data_prepare(age2group=True, one_hot=True):
+    df_train = pd.read_csv(__get_dir('../origin_data/train.csv'))
+    df_test = pd.read_csv(__get_dir('../origin_data/test.csv'))
 
     # None process
     none_list = ['age', '2_total_fee', '3_total_fee', 'gender']
@@ -113,6 +118,15 @@ def dummies(df, columns):
             df.drop(columns=[c], inplace=True)
 
 
+def load_label2index():
+    global decode_list
+    global encode_map
+    if not decode_list:
+        encode_map, decode_list = pickle_load(__get_dir('../origin_data/label2index.pkl'))
+    # 返回了 map 和list
+    return encode_map, decode_list
+
+
 def one_hot2label_index(y_pre_origin):
     y_pre_np = np.array(y_pre_origin)
     log.info('data shape {},data length {}'.format(y_pre_np.shape, len(y_pre_np)))
@@ -141,6 +155,7 @@ def label2index(df, label_name, inplace=True):
         df[label_name] = t
     print(df[label_name].value_counts())
     log.info('-' * 100)
+    pickle_dump((encode_map, decode_list), __get_dir('../origin_data/label2index.pkl'))
     return t
 
 
@@ -148,7 +163,7 @@ def index2label(y_pre_label_index):
     return list(map(lambda x: decode_list[x], y_pre_label_index))
 
 
-def write_result(file_name, id_series, label_list, label_type='one_hot'):
+def write_result(file_name, ids, labels, label_type='label_index'):
     # todo 完成数据的写入部分
 
     '''
@@ -158,6 +173,19 @@ def write_result(file_name, id_series, label_list, label_type='one_hot'):
     :param label_type:
     :return:
     '''
+    load_label2index()
+    df_test = pd.DataFrame()
+    df_test[ID] = ids
+
+    if label_type == 'one_hot':
+        labels = one_hot2label_index(labels)
+    if label_type in ['label_index', 'one_hot']:
+        labels = [decode_list[label] for label in labels]
+    df_test[LABEL] = labels
+    df_test.columns = [ID, 'predict']
+    print('====shape df_test====', df_test.shape)
+    with timer('write result to {}'.format(file_name)):
+        df_test.to_csv(file_name, index=False)
 
 
 def eda(age2group=True, one_hot=True):

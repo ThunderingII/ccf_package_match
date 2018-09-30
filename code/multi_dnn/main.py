@@ -4,7 +4,8 @@ import numpy as np
 import os, argparse, time, random
 from code.multi_dnn.model_dnn import mul_dnn
 from code.util.base_util import get_logger
-from code.multi_dnn.nn_prepare_data import read_corpus, load_label2index
+from code.multi_dnn.nn_prepare_data import read_corpus
+from code.base_data_process import load_label2index
 
 # session configuration
 config = tf.ConfigProto()
@@ -23,8 +24,8 @@ parser.add_argument('--clip', type=float, default=5.0, help='gradient clipping')
 parser.add_argument('--hidden_dim1', type=int, default=60, help='#dim of hidden state')
 parser.add_argument('--hidden_dim2', type=int, default=30, help='#dim of hidden state')
 parser.add_argument('--hidden_dim3', type=int, default=10, help='#dim of hidden state')
-parser.add_argument('--mode', type=str, default='train', help='train/test/demo')
-parser.add_argument('--demo_model', type=str, default='1537768833', help='model for test and demo')
+parser.add_argument('--mode', type=str, default='test', help='train/test/demo')
+parser.add_argument('--demo_model', type=str, default='1538277937', help='model for test and demo')
 
 args = parser.parse_args()
 ## paths setting
@@ -48,19 +49,19 @@ get_logger(log_path).info(str(args))
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
-label2index_map, _ = load_label2index()
-print(label2index_map)
+_, label_list = load_label2index()
+print(label_list)
 # training model
 train_path = os.path.join(args.train_data, 'train_modified.csv')
 test_path = os.path.join(args.test_data, 'test_modified.csv')
 if args.mode == 'train':
     ids, train_data = read_corpus(train_path)
     print("train data: {}".format(len(train_data)))
-    train = train_data[:650000]
-    val = train_data[650000:]
+    train = train_data[:1000]
+    val = train_data[1000:2000]
     input_size = len(train.columns) - 1
     print('input_size', input_size)
-    model = mul_dnn(args, label2index_map, input_size, paths, config=config)
+    model = mul_dnn(args, len(label_list), input_size, paths, config=config)
     model.build_graph()
     model.train(train=train, dev=val)
 elif args.mode == 'test':
@@ -71,7 +72,7 @@ elif args.mode == 'test':
     paths['model_path'] = ckpt_file
     input_size = len(test.columns)
     print('input_size', input_size)
-    model = mul_dnn(args, label2index_map, input_size, paths, config=config)
+    model = mul_dnn(args, len(label_list), input_size, paths, config=config)
     model.build_graph()
     model.test(ids, test)
 else:

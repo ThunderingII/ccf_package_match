@@ -27,9 +27,6 @@ def data_prepare(df_train, df_test):
     # label 2 index
     base_data_process.label2index(df_train, LABEL)
 
-    base_util.pickle_dump((base_data_process.encode_map, base_data_process.decode_list),
-                          '../../origin_data/label2index.pkl')
-
     with timer('save train data'):
         df_train.to_csv('../../origin_data/train_modified.csv', index=False)
     with timer('save test data'):
@@ -50,16 +47,12 @@ def read_corpus(corpus_path):
     return id_col, df
 
 
-def load_label2index():
-    # 返回了 map 和list
-    return base_util.pickle_load('../../origin_data/label2index.pkl')
-
-
 def batch_yield(df, batch_size):
     if batch_size == -1:
         batch_size = len(df)
-    # equal to shuffle
-    df = df.sample(frac=1)
+    else:
+        # equal to shuffle
+        df = df.sample(frac=1)
     # len(df) // batch_size * batch_size <= len(df)
     total_batch = len(df) // batch_size
 
@@ -68,15 +61,6 @@ def batch_yield(df, batch_size):
         labels = data[LABEL]
         data.drop([LABEL], axis=1, inplace=True)
         yield data, labels
-
-
-def save_result(ids, labels, submit_path):
-    df_test = pd.DataFrame()
-    df_test[ID] = ids
-    df_test[LABEL] = labels
-    df_test.columns = [ID, 'predict']
-    print('====shape df_test====', df_test.shape)
-    df_test.to_csv(submit_path, index=False)
 
 
 if __name__ == '__main__':
