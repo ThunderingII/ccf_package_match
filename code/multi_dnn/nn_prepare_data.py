@@ -9,6 +9,7 @@ from code.util import base_util
 import os, random
 # Suppress warnings
 import warnings
+import math
 
 warnings.filterwarnings('ignore')
 ID = 'user_id'
@@ -27,6 +28,7 @@ def data_prepare(df_train, df_test):
     # label 2 index
     base_data_process.label2index(df_train, LABEL)
 
+    log.info('current path: {}'.format(os.getcwd()))
     with timer('save train data'):
         df_train.to_csv('../../origin_data/train_modified.csv', index=False)
     with timer('save test data'):
@@ -53,8 +55,7 @@ def batch_yield(df, batch_size):
     else:
         # equal to shuffle
         df = df.sample(frac=1)
-    # len(df) // batch_size * batch_size <= len(df)
-    total_batch = len(df) // batch_size
+    total_batch = int(math.ceil(len(df) / batch_size))
 
     for i in range(total_batch):
         data = df.iloc[i * batch_size:i * batch_size + batch_size, :]
@@ -65,4 +66,5 @@ def batch_yield(df, batch_size):
 
 if __name__ == '__main__':
     df_train, df_test = base_data_process.eda(age2group=True, one_hot=True)
+
     data_prepare(df_train, df_test)

@@ -24,14 +24,16 @@ parser.add_argument('--clip', type=float, default=5.0, help='gradient clipping')
 parser.add_argument('--hidden_dim1', type=int, default=60, help='#dim of hidden state')
 parser.add_argument('--hidden_dim2', type=int, default=30, help='#dim of hidden state')
 parser.add_argument('--hidden_dim3', type=int, default=10, help='#dim of hidden state')
-parser.add_argument('--mode', type=str, default='test', help='train/test/demo')
-parser.add_argument('--demo_model', type=str, default='1538277937', help='model for test and demo')
+parser.add_argument('--tag', type=str, default='dnn', help='#the tag of the model')
 
+# change mode when test 1
+parser.add_argument('--mode', type=str, default='train', help='train/test/demo')
+parser.add_argument('--demo_model', type=str, default='dnn_1538797636', help='model for test and demo')
 args = parser.parse_args()
 ## paths setting
 paths = {}
-timestamp = str(int(time.time())) if args.mode == 'train' else args.demo_model
-output_path = os.path.join(args.result, "dnn_save", timestamp)
+tag_timestamp = '{}_{}'.format(args.tag, int(time.time())) if args.mode == 'train' else args.demo_model
+output_path = os.path.join(args.result, "dnn_save", tag_timestamp)
 if not os.path.exists(output_path): os.makedirs(output_path)
 summary_path = os.path.join(output_path, "summaries")
 paths['summary_path'] = summary_path
@@ -58,22 +60,22 @@ if args.mode == 'train':
     ids, train_data = read_corpus(train_path)
     print("train data: {}".format(len(train_data)))
     train = train_data[:1000]
-    val = train_data[1000:2000]
+    val = train_data[1000:1050]
     input_size = len(train.columns) - 1
     print('input_size', input_size)
     model = mul_dnn(args, len(label_list), input_size, paths, config=config)
     model.build_graph()
     model.train(train=train, dev=val)
 elif args.mode == 'test':
-    ids, test = read_corpus(test_path)
-    print("test data: {}".format(len(test)))
+    ids, feats_test = read_corpus(test_path)
+    print("test data: {}".format(len(feats_test)))
     ckpt_file = tf.train.latest_checkpoint(model_path)
     print(ckpt_file)
     paths['model_path'] = ckpt_file
-    input_size = len(test.columns)
+    input_size = len(feats_test.columns)
     print('input_size', input_size)
     model = mul_dnn(args, len(label_list), input_size, paths, config=config)
     model.build_graph()
-    model.test(ids, test)
+    model.test(ids, feats_test)
 else:
     print('invalid mode parameter')

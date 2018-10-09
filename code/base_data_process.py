@@ -25,6 +25,8 @@ def base_data_prepare(age2group=True, one_hot=True):
     df_train = pd.read_csv(__get_dir('../origin_data/train.csv'))
     df_test = pd.read_csv(__get_dir('../origin_data/test.csv'))
 
+    log.info('load data success!\ttrain shape:{}\ttest shape:{}'.format(df_train.shape, df_test.shape))
+
     # None process
     none_list = ['age', '2_total_fee', '3_total_fee', 'gender']
     remove_N_with_Nan(df_train, none_list)
@@ -74,11 +76,11 @@ def base_data_prepare(age2group=True, one_hot=True):
     df_train['ll'] = df_train['last_month_traffic'] / (df_train['local_trafffic_month'] + 1)
     df_test['ll'] = df_train['last_month_traffic'] / (df_train['local_trafffic_month'] + 1)
 
-    print('before align\ntrain shape:{}\ntest shape:{}'.format(df_train.shape, df_test.shape))
+    log.info('before align\ttrain shape:{}\ttest shape:{}'.format(df_train.shape, df_test.shape))
 
     df_train, df_test = df_train.align(df_test, join='inner', axis=1)
 
-    print('after align\ntrain shape:{}\ntest shape:{}'.format(df_train.shape, df_test.shape))
+    log.info('after align\ttrain shape:{}\ttest shape:{}'.format(df_train.shape, df_test.shape))
 
     df_train[LABEL] = label
 
@@ -143,6 +145,8 @@ def label2index(df, label_name, inplace=True):
     global encode_map
     if not len(decode_list):
         decode_list = sorted(list(df[label_name].unique()))
+
+    log.info('find {} classes'.format(len(decode_list)))
 
     label_size = len(decode_list)
 

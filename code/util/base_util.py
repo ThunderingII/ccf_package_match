@@ -61,8 +61,11 @@ logger_dict = {}
 def get_logger(filename='STD_LOG.log', logger_name='STD_LOG', level=logging.DEBUG, file_level=logging.INFO,
                fstr='%(asctime)s - %(name)s - %(levelname)s - %(message)s           |-| %(filename)s-%(funcName)s-%(lineno)s'):
     global logger_dict
-    key = md5('{}-{}-{}-{}-{}'.format(filename, logger_name, level, file_level, fstr))
 
+    key = md5('{}-{}-{}-{}-{}'.format(filename, logger_name, level, file_level, fstr))
+    if not logger_dict and filename == 'STD_LOG.log':
+        for key in logger_dict:
+            return logger_dict[key]
     if key not in logger_dict:
         # 创建一个logger
         logger = logging.getLogger(logger_name)

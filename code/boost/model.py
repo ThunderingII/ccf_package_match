@@ -114,7 +114,8 @@ if __name__ == '__main__':
     if not os.path.exists('origin_data_save'):
         os.mkdir('origin_data_save')
     with timer('data process'):
-        df_train, df_test = eda()
+        df_train, df_test = eda(age2group=False, one_hot=False)
+        print(df_train.describe())
         label2index(df_train, LABEL)
     with timer('model process'):
         model(df_train, df_test, num_folds=5, num_boost_round=10000)

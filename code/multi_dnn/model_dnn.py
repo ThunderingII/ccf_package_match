@@ -31,6 +31,7 @@ class mul_dnn(object):
         self.summary_path = paths['summary_path']
         self.logger = base_util.get_logger(paths['log_path'])
         self.result_path = paths['result_path']
+        self.gs = 0
 
     def build_graph(self):
         self.add_placeholders()
@@ -123,43 +124,42 @@ class mul_dnn(object):
                 print('=====epoch====', epoch + 1)
                 self.run_one_epoch(sess, train, dev, epoch, saver)
 
-    def test(self, ids, test):
+    def test(self, ids, feats_test):
         print('============test=========')
         saver = tf.train.Saver()
         with tf.Session(config=self.config) as sess:
             saver.restore(sess, self.model_path)
-            feed_dict = self.get_feed_dict(test, dropout=1.0)
-            # print('====feed_dict====',feed_dict)
-            label_pre = sess.run(self.pred_label, feed_dict=feed_dict)
+            label_pre = self.predict(sess, feats_test)
             submit_path = os.path.join(self.result_path, 'result.csv')
             write_result(submit_path, ids, label_pre)
 
     def run_one_epoch(self, sess, train, dev, epoch, saver):
         num_batches = (len(train) + self.batch_size - 1) // self.batch_size
         batches = batch_yield(train, self.batch_size)
-        step_num = 0
         for step, (feats, label) in enumerate(batches):
-            step_num = epoch * num_batches + step + 1
+            self.global_step += epoch * num_batches + step + 1
             feed_dict = self.get_feed_dict(feats, label, self.lr, self.dropout_keep_prob)
             _, loss_train, summary, step_num_, test_labels, test_logists = sess.run(
                 [self.train_op, self.loss, self.merged, self.global_step, self.labels, self.logits],
                 feed_dict=feed_dict)
             if step + 1 == 1 or (step + 1) % 100 == 0 or step + 1 == num_batches:
                 self.logger.info('epoch {}, step {},loss: {:.4},global_step: {}'.format(epoch + 1, step + 1,
-                                                                                        loss_train, step_num))
-            self.file_writer.add_summary(summary, step_num)
+                                                                                        loss_train, step_num_))
+            self.file_writer.add_summary(summary, step_num_)
 
-        saver.save(sess, self.model_path, global_step=step_num)
+        saver.save(sess, self.model_path, global_step=sess.run(self.global_step))
 
         self.logger.info('===========validation / test============')
-        label_pre, label_true = self.predict(sess, dev)
-        accuracy, precision, recall, f1 = self.evaluate(label_pre, label_true, epoch)
-        print("accuracy:%.5f,precision:%.5f,recall:%.5f, f1:%.5f" % (accuracy, precision, recall, f1))
-        self.logger.info(
-            'accuracy:{},precision:{},recall:{},f1:{}'.format(
-                accuracy, precision, recall, f1
+        # because batch size is -1,the 'for' will run exactly 1 time
+        for feats, label_true in batch_yield(dev, -1):
+            label_pre = self.predict(sess, feats)
+            label_true = label_true
+            accuracy, precision, recall, f1 = self.evaluate(label_pre, label_true, epoch)
+            self.logger.info(
+                'accuracy:{},precision:{},recall:{},f1:{}'.format(
+                    accuracy, precision, recall, f1
+                )
             )
-        )
 
     def get_feed_dict(self, feats, label=None, lr=None, dropout=None):
         feed_dict = {self.features: feats}
@@ -174,12 +174,11 @@ class mul_dnn(object):
             feed_dict[self.dropout_pl] = dropout
         return feed_dict
 
-    def predict(self, sess, dev):
-        for feats, label_true in batch_yield(dev, -1):
-            feed_dict = self.get_feed_dict(feats, dropout=1.0)
-            # print('====feed_dict====',feed_dict)
-            label_pre = sess.run(self.pred_label, feed_dict=feed_dict)
-            return label_pre, label_true
+    def predict(self, sess, feats):
+        feed_dict = self.get_feed_dict(feats, dropout=1.0)
+        # print('====feed_dict====',feed_dict)
+        label_pre = sess.run(self.pred_label, feed_dict=feed_dict)
+        return label_pre
 
     def evaluate(self, label_pre, label_true, epoch=None):
         accuracy = 0
