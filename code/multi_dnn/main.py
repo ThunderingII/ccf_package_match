@@ -57,7 +57,7 @@ print(label_list)
 train_path = os.path.join(args.train_data, 'train_modified.csv')
 test_path = os.path.join(args.test_data, 'test_modified.csv')
 if args.mode == 'train':
-    ids, train_data = read_corpus(train_path)
+    ids, train_data = read_corpus(train_path, shuffle=False)
     print("train data: {}".format(len(train_data)))
     train = train_data[:1000]
     val = train_data[1000:1050]
@@ -77,5 +77,6 @@ elif args.mode == 'test':
     model = mul_dnn(args, len(label_list), input_size, paths, config=config)
     model.build_graph()
     model.test(ids, feats_test)
+#     3
 else:
     print('invalid mode parameter')

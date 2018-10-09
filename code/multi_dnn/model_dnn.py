@@ -137,6 +137,7 @@ class mul_dnn(object):
         num_batches = (len(train) + self.batch_size - 1) // self.batch_size
         batches = batch_yield(train, self.batch_size)
         for step, (feats, label) in enumerate(batches):
+            print(label)
             self.global_step += epoch * num_batches + step + 1
             feed_dict = self.get_feed_dict(feats, label, self.lr, self.dropout_keep_prob)
             _, loss_train, summary, step_num_, test_labels, test_logists = sess.run(

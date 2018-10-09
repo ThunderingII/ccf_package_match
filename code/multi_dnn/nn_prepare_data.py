@@ -41,8 +41,10 @@ def normalize_process(df_train, df_test, conti_list):
         df_test[col] = (df_test[col] - df_test[col].min()) / (df_test[col].max() - df_test[col].min())
 
 
-def read_corpus(corpus_path):
+def read_corpus(corpus_path, shuffle=True):
     df = pd.read_csv(corpus_path)
+    if shuffle:
+        df.sample(frac=1, replace=True)
     # drop user_id
     id_col = df[ID]
     df.drop([ID], axis=1, inplace=True)
