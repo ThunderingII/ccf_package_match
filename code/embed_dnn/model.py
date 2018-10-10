@@ -1,12 +1,13 @@
 from keras.models import Sequential
 from keras.layers import Input, Embedding, Dense, Reshape
 from keras.models import Model
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, LearningRateScheduler
 import keras
 import pandas as pd
 import numpy as np
 
 from sklearn import preprocessing
+from sklearn.model_selection import StratifiedKFold
 from code.util.base_util import get_logger
 from code.util.base_util import timer
 from code import base_data_process
@@ -22,25 +23,18 @@ log = get_logger()
 
 category_list = ['gender', 'service_type', 'is_mix_service', 'contract_type',
                  'net_service', 'complaint_level', 'age_group']
-if __name__ == '__main__':
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
+def data_prepare():
     df_train, df_test = base_data_process.eda(age2group=True, one_hot=False)
-
     base_data_process.label2index(df_train, LABEL)
     label = df_train[LABEL]
     df_train.drop(columns=[LABEL], inplace=True)
     df_train.drop(columns=[ID], inplace=True)
-
     label_one_hot = pd.get_dummies(label)
-
     feats = [f for f in df_train.columns if f not in category_list]
-
     log.info('feats are {}'.format(feats))
-
-    le_map = {}
-    le_size_map = {}
+    category_encode_size_map = {}
     for c in category_list:
         le = preprocessing.LabelEncoder()
         le.fit(pd.concat([df_train[c], df_test[c]], axis=0))
@@ -48,52 +42,80 @@ if __name__ == '__main__':
         df_train[c] = le.transform(df_train[c])
         df_test[c] = le.transform(df_test[c])
 
-        le_map[c] = le
-        le_size_map[c] = len(le.classes_)
+        category_encode_size_map[c] = len(le.classes_)
 
         log.info('{} has {} classes, origin classes are {}'.format(c, len(le.classes_), le.classes_))
+    return df_train, df_test, label, label_one_hot, feats, category_encode_size_map
 
-    x_n = Input(shape=(len(feats),), name='number_input')
 
-    embed_map = {}
-    embed_in_map = {}
+def build_model_input_output(feats, category_encode_size_map, l1_size=300, l2_size=100):
+    input_feats = Input(shape=(len(feats),), name='number_input')
+    input_list = [input_feats]
+    embedding_result_list = []
     for c in category_list:
-        x_c_in = Input(shape=(1,), name=c)
-        e_c = Embedding(output_dim=20, input_dim=le_size_map[c], input_length=None)(x_c_in)
-        embed_in_map[c] = x_c_in
-        embed_map[c] = e_c
+        input_category_c = Input(shape=(1,), name=c)
+        # 每次只进去一个数据，获取对应数据的embedding结果，所以input size 为1
+        embedding_result = Embedding(output_dim=20, input_dim=category_encode_size_map[c], input_length=1)(
+            input_category_c)
+        input_list.append(input_category_c)
+        embedding_result_list.append(embedding_result)
 
-    x_list = []
-    x_in_list = [x_n]
-    for c in category_list:
-        x_list.append(embed_map[c])
-        x_in_list.append(embed_in_map[c])
-
-    x_1_n_20 = keras.layers.concatenate(x_list)
-
+    category_embeddings_3d = keras.layers.concatenate(embedding_result_list)
     # embedding 出来的是3D张量，带着input length的，因为我们input length 就只有一个，所以需要去掉那一维，这里使用 Flatten 应该也是ok的
-    x_reshape = Reshape((20 * len(category_list),))(x_1_n_20)
+    category_embeddings = Reshape((20 * len(category_list),))(category_embeddings_3d)
+    dense_layer_in = keras.layers.concatenate([input_feats, category_embeddings])
 
-    x = keras.layers.concatenate([x_n, x_reshape])
-
-    l1 = Dense(100, activation='relu')(x)
-    l2 = Dense(100, activation='relu')(l1)
+    l1 = Dense(l1_size, activation='relu')(dense_layer_in)
+    l2 = Dense(l2_size, activation='relu')(l1)
 
     output = Dense(len(base_data_process.decode_list), activation=keras.activations.softmax, name='main_output')(l2)
+    return input_list, output
 
-    model = Model(inputs=x_in_list, outputs=output)
+
+if __name__ == '__main__':
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+    df_train, df_test, label, label_one_hot, feats, category_encode_size_map = data_prepare()
+
+    input_list, output = build_model_input_output(feats, category_encode_size_map)
+
+    model = Model(inputs=input_list, outputs=output)
 
     model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.adam(lr=0.0002))
 
-    input_list = [df_train[feats]]
-    test_input_list = [df_test[feats]]
-    for c in category_list:
-        input_list.append(df_train[c])
-        test_input_list.append(df_test[c])
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
 
-    early_stopping = EarlyStopping(monitor='loss', patience=5, verbose=1)
-    model.fit(input_list, label_one_hot, 30, 100, callbacks=[early_stopping])
 
-    y_pre = model.predict(test_input_list)
+    def get_lr(epoch_num):
+        lr = 0.0005 / (1 + epoch_num / 8)
+        log.info('epoch:{} lr:{}'.format(epoch_num, lr))
+        return lr
 
-    base_data_process.write_result('keras_50.csv', df_test[ID], y_pre, 'one_hot')
+
+    lrs = LearningRateScheduler(get_lr, verbose=1)
+
+    sKF = StratifiedKFold(10, shuffle=True)
+
+    y_pre = np.zeros(shape=(len(df_test), label_one_hot.shape[1]))
+    print(label_one_hot.shape)
+    i_f = 0
+    for train_index, val_index in sKF.split(df_train, label):
+        i_f += 1
+        log.info('begin fold {}, size of train {}, size of test {}'.format(i_f, len(train_index), len(val_index)))
+        train = df_train.loc[train_index]
+        val = df_train.loc[val_index]
+        data_list = [train[feats]]
+        data_val_list = [val[feats]]
+        test_data_list = [df_test[feats]]
+        for c in category_list:
+            data_list.append(train[c])
+            data_val_list.append(val[c])
+            test_data_list.append(df_test[c])
+
+        model.fit(data_list, label_one_hot.loc[train_index], 30, 100,
+                  validation_data=(data_val_list, label_one_hot.loc[val_index]), callbacks=[early_stopping, lrs])
+
+        y_pre += model.predict(test_data_list)
+
+    base_data_process.write_result('keras_lrs.csv', df_test[ID], y_pre, 'one_hot')
