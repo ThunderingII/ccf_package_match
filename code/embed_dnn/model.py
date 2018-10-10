@@ -1,6 +1,7 @@
 from keras.models import Sequential
 from keras.layers import Input, Embedding, Dense, Reshape
 from keras.models import Model
+from keras.callbacks import EarlyStopping
 import keras
 import pandas as pd
 import numpy as np
@@ -22,6 +23,9 @@ log = get_logger()
 category_list = ['gender', 'service_type', 'is_mix_service', 'contract_type',
                  'net_service', 'complaint_level', 'age_group']
 if __name__ == '__main__':
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
     df_train, df_test = base_data_process.eda(age2group=True, one_hot=False)
 
     base_data_process.label2index(df_train, LABEL)
@@ -79,7 +83,7 @@ if __name__ == '__main__':
 
     model = Model(inputs=x_in_list, outputs=output)
 
-    model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.adam(lr=0.001))
+    model.compile(loss=keras.losses.categorical_crossentropy, optimizer=keras.optimizers.adam(lr=0.0002))
 
     input_list = [df_train[feats]]
     test_input_list = [df_test[feats]]
@@ -87,7 +91,8 @@ if __name__ == '__main__':
         input_list.append(df_train[c])
         test_input_list.append(df_test[c])
 
-    model.fit(input_list, label_one_hot, 32, 50)
+    early_stopping = EarlyStopping(monitor='loss', patience=5, verbose=1)
+    model.fit(input_list, label_one_hot, 30, 100, callbacks=[early_stopping])
 
     y_pre = model.predict(test_input_list)
 
