@@ -99,9 +99,8 @@ def write2file(col_id, pre_label, name=None):
 
 # Display/plot feature importance
 def display_importances(feature_importance_df_):
-    cols = feature_importance_df_[["feature", "importance"]].groupby("feature").mean().sort_values(by="importance",
-                                                                                                   ascending=False)[
-           :40].index
+    cols = feature_importance_df_[["feature", "importance"]].groupby("feature").mean().sort_values(
+        by="importance", ascending=False)[:40].index
     best_features = feature_importance_df_.loc[feature_importance_df_.feature.isin(cols)]
     plt.figure(figsize=(8, 10))
     sns.barplot(x="importance", y="feature", data=best_features.sort_values(by="importance", ascending=False))
@@ -114,7 +113,7 @@ if __name__ == '__main__':
     if not os.path.exists('origin_data_save'):
         os.mkdir('origin_data_save')
     with timer('data process'):
-        df_train, df_test = eda(age2group=False, one_hot=False)
+        df_train, df_test = eda(age2group=False, one_hot=True)
         print(df_train.describe())
         label2index(df_train, LABEL)
     with timer('model process'):

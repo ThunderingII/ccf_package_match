@@ -72,8 +72,7 @@ def build_model_input_output(feats, category_encode_size_map, l1_size=300, l2_si
     return input_list, output
 
 
-if __name__ == '__main__':
-
+def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     df_train, df_test, label, label_one_hot, feats, category_encode_size_map = data_prepare()
@@ -86,12 +85,10 @@ if __name__ == '__main__':
 
     early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
 
-
     def get_lr(epoch_num):
-        lr = 0.0005 / (1 + epoch_num / 8)
+        lr = 0.0003 / (1 + epoch_num / 3)
         log.info('epoch:{} lr:{}'.format(epoch_num, lr))
         return lr
-
 
     lrs = LearningRateScheduler(get_lr, verbose=1)
 
@@ -115,9 +112,38 @@ if __name__ == '__main__':
 
         model.fit(data_list, label_one_hot.loc[train_index], 30, 100,
                   validation_data=(data_val_list, label_one_hot.loc[val_index]), callbacks=[early_stopping, lrs])
-
         y_pre += model.predict(test_data_list)
         model.save('keras_model_{}'.format(i_f))
         base_data_process.write_result('keras_lrs_{}.csv'.format(i_f), df_test[ID], y_pre, 'one_hot')
 
     base_data_process.write_result('keras_lrs.csv', df_test[ID], y_pre, 'one_hot')
+
+
+def get_layer_out():
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    model = keras.models.load_model('keras_model_4')
+    df_train, df_test, label, label_one_hot, feats, category_encode_size_map = data_prepare()
+    test_data_list = [df_test[feats]]
+    for c in category_list:
+        test_data_list.append(df_test[c])
+
+    from keras import backend as K
+
+    get_layer_out = K.function(
+        [model.layers[15].input, model.layers[0].input, model.layers[1].input, model.layers[2].input,
+         model.layers[3].input, model.layers[4].input, model.layers[5].input, model.layers[6].input],
+        # [model.layers[15].input, model.layers[7].input, model.layers[8].input, model.layers[9].input,
+        #  model.layers[10].input, model.layers[11].input, model.layers[12].input, model.layers[13].input],
+        [model.layers[-2].output, model.layers[-3].output])
+
+    for i, l in enumerate(model.layers):
+        print(i, l.name)
+        print(l.input)
+        print(l.output)
+
+    print(get_layer_out(test_data_list))
+
+
+if __name__ == '__main__':
+    # main()
+    get_layer_out()
