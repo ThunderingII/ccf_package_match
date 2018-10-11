@@ -117,5 +117,7 @@ if __name__ == '__main__':
                   validation_data=(data_val_list, label_one_hot.loc[val_index]), callbacks=[early_stopping, lrs])
 
         y_pre += model.predict(test_data_list)
+        model.save('keras_model_{}'.format(i_f))
+        base_data_process.write_result('keras_lrs_{}.csv'.format(i_f), df_test[ID], y_pre, 'one_hot')
 
     base_data_process.write_result('keras_lrs.csv', df_test[ID], y_pre, 'one_hot')

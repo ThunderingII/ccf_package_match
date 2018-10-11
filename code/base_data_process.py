@@ -102,16 +102,12 @@ def fill_nan_mean(df, columns, df_value, as_type=np.float):
 
 
 def dummies(df, columns):
-    le = preprocessing.LabelEncoder()
     if df is None:
         return
     for c in columns:
         if c not in df.columns:
             print('{} not in df'.format(c))
             continue
-        if df[c].value_counts().count() <= 2:
-            le.fit(df[c])
-            df[c] = le.transform(df[c])
         else:
             d = pd.get_dummies(df[c], prefix=c)
             print('{} has divide into:\n\t\t\t\t{}'.format(c, list(d.columns)))
