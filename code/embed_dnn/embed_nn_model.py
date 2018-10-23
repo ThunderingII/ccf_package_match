@@ -20,6 +20,7 @@ import math
 ID = 'user_id'
 LABEL = 'current_service'
 log = get_logger()
+TAG = 'test'
 
 category_list = ['gender', 'service_type', 'is_mix_service', 'contract_type',
                  'net_service', 'complaint_level', 'age_group']
@@ -73,7 +74,7 @@ def build_model_input_output(feats, category_encode_size_map, l1_size=300, l2_si
 
 
 def main():
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     df_train, df_test, label, label_one_hot, feats, category_encode_size_map = data_prepare()
 
@@ -112,11 +113,12 @@ def main():
 
         model.fit(data_list, label_one_hot.loc[train_index], 30, 100,
                   validation_data=(data_val_list, label_one_hot.loc[val_index]), callbacks=[early_stopping, lrs])
-        y_pre += model.predict(test_data_list)
-        model.save('keras_model_{}'.format(i_f))
-        base_data_process.write_result('keras_lrs_{}.csv'.format(i_f), df_test[ID], y_pre, 'one_hot')
+        y_p = model.predict(test_data_list)
+        y_pre += y_p
+        model.save('keras_model_{}_{}'.format(TAG, i_f))
+        base_data_process.write_result('keras_{}_{}.csv'.format(TAG, i_f), df_test[ID], y_p, 'one_hot')
 
-    base_data_process.write_result('keras_lrs.csv', df_test[ID], y_pre, 'one_hot')
+    base_data_process.write_result('keras_{}.csv'.format(TAG), df_test[ID], y_pre, 'one_hot')
 
 
 def get_layer_out():
@@ -145,5 +147,5 @@ def get_layer_out():
 
 
 if __name__ == '__main__':
-    # main()
-    get_layer_out()
+    main()
+    # get_layer_out()

@@ -12,6 +12,9 @@ from hyperopt import hp
 from hyperopt import tpe
 from hyperopt import Trials
 from hyperopt import fmin
+from code.base_data_process import eda
+from code.base_data_process import label2index
+from code.base_data_process import one_hot2label_index
 
 ITERATION = 0
 
@@ -22,8 +25,8 @@ def cross_validation(train, params, ID_COLUMN_NAME, LABEL_COLUMN_NAME, N_FOLD=5)
     '''
     :return: loss
     '''
-    NUM_BOOST_ROUND = 1000
-    EARLY_STOPPING_ROUNDS = 50
+    NUM_BOOST_ROUND = 5
+    EARLY_STOPPING_ROUNDS = 2
 
     # Cross validation model
     folds = StratifiedKFold(n_splits=N_FOLD, shuffle=True, random_state=1001)
@@ -48,15 +51,7 @@ def cross_validation(train, params, ID_COLUMN_NAME, LABEL_COLUMN_NAME, N_FOLD=5)
             )
         with timer('cross validation-fold {} predict'.format(i_fold)):
             v_data = clf.predict(dvalid.data)
-            y_pre = []
-            for d in v_data:
-                max = d[0]
-                max_i = 0
-                for i in range(1, 15):
-                    if d[i] > max:
-                        max = d[i]
-                        max_i = i
-                y_pre.append(max_i)
+            y_pre = one_hot2label_index(v_data)
         f1 = f1_score(dvalid.label, y_pre, average='macro')
         return f1
 
@@ -81,7 +76,7 @@ def objective(hyperparameters):
     # Write to the csv file ('a' means append)
     of_connection = open('hyperparameters.csv', 'a')
     writer = csv.writer(of_connection)
-    writer.writerow([loss, hyperparameters, ITERATION, run_time, 1 - loss])
+    writer.writerow([ITERATION, loss, hyperparameters, run_time, 1 - loss, f1])
     of_connection.close()
 
     log.info('iteration-{} f1:{} loss:{} train_time:{}'.format(ITERATION, f1, loss, run_time))
@@ -92,7 +87,7 @@ def objective(hyperparameters):
 
 def optimization():
     space = {
-        'learning_rate': 0.1,
+        'learning_rate': 0.01,
         'boosting_type': hp.choice('boosting_type', ['gbdt']),
         'num_leaves': hp.choice('num_leaves', [15, 20, 30, 50, 65, 80, 100, 150, 400]),
         'bin_construct_sample_cnt': hp.choice('bin_construct_sample_cnt', [10000, 20000, 60000, 100000, 200000]),
@@ -105,7 +100,7 @@ def optimization():
         'is_unbalance': hp.choice('is_unbalance', [True, False]),
         'num_threads': 40,
         'objective': 'multiclass',
-        'num_class': 15,
+        'num_class': 11,
         'verbose': -1
     }
 
@@ -125,13 +120,12 @@ def optimization():
 
 config_dict = {
     'train': pd.DataFrame(),
-    'max_evals': 200
+    'max_evals': 1000
 }
 
 if __name__ == '__main__':
-    from competitions311.model import data_prepare
-
-    df_train, df_test = data_prepare()
+    df_train, df_test = eda(True, False)
 
     config_dict['train'] = df_train.iloc[:, :]
+    label2index(df_train, 'current_service')
     optimization()

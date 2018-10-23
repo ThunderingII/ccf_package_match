@@ -21,8 +21,7 @@ def data_prepare(df_train, df_test):
     conti_list = ['1_total_fee', '2_total_fee', '3_total_fee', '4_total_fee', 'contract_time',
                   'former_complaint_fee', 'former_complaint_num', 'last_month_traffic', 'local_caller_time',
                   'local_trafffic_month', 'month_traffic', 'online_time', 'pay_num', 'pay_times',
-                  'service1_caller_time',
-                  'service2_caller_time', 'pay_num_per_time', 'll']
+                  'service1_caller_time', 'service2_caller_time', 'pay_num_per_time', 'll']
 
     normalize_process(df_train, df_test, conti_list)
     # label 2 index

@@ -14,6 +14,9 @@ ID = 'user_id'
 
 log = get_logger()
 
+category_list = ['gender', 'service_type', 'is_mix_service', 'contract_type',
+                 'net_service', 'complaint_level', 'age_group', 'ctims']
+
 
 def __get_dir(dir):
     if not os.getcwd().endswith('code'):
@@ -59,10 +62,6 @@ def base_data_prepare(age2group=True, one_hot=True):
         # process age
         df_train['age_group'] = df_train['age'].apply(lambda x: x // 10)
         df_test['age_group'] = df_test['age'].apply(lambda x: x // 10)
-
-    # one hot
-    category_list = ['gender', 'service_type', 'is_mix_service', 'contract_type',
-                     'net_service', 'complaint_level', 'age_group']
 
     if one_hot:
         dummies(df_train, category_list)
@@ -128,7 +127,7 @@ def load_label2index():
 def one_hot2label_index(y_pre_origin):
     y_pre_np = np.array(y_pre_origin)
     log.info('data shape {},data length {}'.format(y_pre_np.shape, len(y_pre_np)))
-    return np.argmax(y_pre_origin, 1)
+    return np.argmax(y_pre_np, 1)
 
 
 encode_map = {}
@@ -188,8 +187,73 @@ def write_result(file_name, ids, labels, label_type='label_index'):
         df_test.to_csv(file_name, index=False)
 
 
-def eda(age2group=True, one_hot=True):
-    train, test = base_data_prepare(age2group, one_hot)
-    # todo eda code
+def min_max_scale(df, columns):
+    for c in columns:
+        df[c] = (df[c] - df[c].min()) / (df[c].max() - df[c].min())
 
-    return train, test
+
+def eda(age2group=True, one_hot=True, scale=False):
+    pd.option_context('display.width', 2000)
+
+    train, test = base_data_prepare(age2group, one_hot)
+    # ['service_type', 'is_mix_service', 'online_time', '1_total_fee',
+    #  '2_total_fee', '3_total_fee', '4_total_fee', 'month_traffic',
+    #  'many_over_bill', 'contract_type', 'contract_time',
+    #  'is_promise_low_consume', 'net_service', 'pay_times', 'pay_num',
+    #  'last_month_traffic', 'local_trafffic_month', 'local_caller_time',
+    #  'service1_caller_time', 'service2_caller_time', 'gender', 'age',
+    #  'complaint_level', 'former_complaint_num', 'former_complaint_fee',
+    #  'user_id', 'age_group', 'pay_num_per_time', 'll', 'current_service']
+    # print(train.head(5))
+    #
+    fee_list = ['1_total_fee', '2_total_fee', '3_total_fee', '4_total_fee']
+
+    labels = train[LABEL]
+    train.drop(columns=[LABEL], inplace=True)
+    train['is_train'] = True
+    test['is_train'] = False
+
+    df = pd.concat((train, test))
+    print(df.shape)
+
+    df['fee_max'] = df[fee_list].max(0)
+
+    df['fee_min'] = df[fee_list].min(0)
+
+    df['fee_mean'] = df[fee_list].mean(0)
+
+    df['fee_std'] = df[fee_list].std(0)
+
+    df['mt_m_lmt'] = df['month_traffic'] - df['last_month_traffic']
+
+    df['ctims'] = df['contract_type'].map(str) + '_' + df['is_mix_service'].map(str)
+
+    continue_list = ['1_total_fee', '2_total_fee', '3_total_fee', '4_total_fee', 'contract_time',
+                     'former_complaint_fee', 'former_complaint_num', 'last_month_traffic', 'local_caller_time',
+                     'local_trafffic_month', 'month_traffic', 'online_time', 'pay_num', 'pay_times',
+                     'service1_caller_time', 'service2_caller_time', 'pay_num_per_time', 'll', 'fee_max', 'fee_min',
+                     'fee_mean', 'fee_std', 'mt_m_lmt']
+
+    if scale:
+        min_max_scale(df, continue_list)
+    for c in category_list:
+        if c in df.columns:
+            df[c], _ = pd.factorize(df[c], sort=True)
+        else:
+            print('==>', c, 'not in the columns')
+
+    print(df.columns)
+    print(df.shape)
+
+    df_train = df[df['is_train'] == True]
+    df_test = df[df['is_train'] == False]
+
+    df_train[LABEL] = labels
+    print(df_train.head(5))
+
+    return df_train, df_test
+    # return train, test
+
+
+if __name__ == '__main__':
+    eda(one_hot=False)

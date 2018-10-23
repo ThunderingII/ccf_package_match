@@ -113,3 +113,10 @@ test*.py
 result/*
 nohup.out
 /origin_data/*.csv
+/code/embed_dnn/model_300_100/
+STD_LOG.log
+/origin_data/label2index.pkl
+*.png
+/code/embed_dnn/keras_model_5
+/code/embed_dnn/keras_model_3
+/code/embed_dnn/keras_model_4
